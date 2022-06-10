@@ -1,0 +1,78 @@
+# $Id: view-lock-mode.org,v 1.9 2022-06-11 08:52:19+09 fubuki Exp fubuki $ -*- mode: org -*-
+* view-lock-mode
+  view-mode のとき、しばらく触らないと印字キーをロックする拡張です。
+  事故防止等で view-mode しておいたのを忘れて、
+  少し経って編集しようとして素のキーにバインドされている isearch を動かしてしまったり、
+  `q' でウィンドウを閉じてしまったりして、迷子になるのを防止するためのものです。
+#  テキスト破壊事故防止で view-mode にしておいたのに view-mode で迷子という事故になる。
+
+* 使い方
+  [[https://github.com/s-fubuki/view-lock-mode][ここ]]から落とし load-path の通った位置に置きます。
+
+  : (require 'view-lock-mode)
+
+  ロードされると `view-read-only' を `t' にします。
+  /C-x C-q/ で `read-only-mode' にすると  `view-mode' になり、
+  モードラインの `View' インジケータに色がつきます。
+
+  `view-mode' のとき 5分間タイプがないと文字キーがロックされ
+  `View' インジケータの色が変わります。
+  文字キー(または改行)を打つと文字が打てずエコーエリアに
+  その旨のメッセージが表示されるようになります。
+
+  ロックされるのは印字キーと改行キーだけなので、
+  コントロール系は勿論カーソル等ファンクション系のキーは素通りします。
+
+  解除するには /C-x C-q/ または /M-q/ を押します。
+  view-mode, read-only-mode 共々 view-lock-mode が終了し、
+  バッファが編集できるようになります(view-lock-quit)。
+
+  このとき prefix を付けると `view-lock-mode' だけが終了し
+  `view-mode' のままになり、再びロックまでのタイマーがスタートします
+  [fn:: これは /C-x C-q/ を2回打つのと同じで、その方が楽なので覚える必要はないでしょう。]。
+
+* カスタマイズ
+** カスタム変数
+*** view-lock-start-time
+    キーに触れなくなってからロック開始するまでの秒数を整数で指定します。
+    デフォルトは 300(5分)です。
+
+*** view-lock-current-input-method
+     non-nil だとロック時に IME を切ります(これも入れたままなのを忘れているので)。
+     デフォルトは `t' です。SKK でしか効力がないかもしれません。
+
+*** view-lock-vc-faces
+    VC に `read-only-mode' と連動させた部分があるので、
+    モードラインの VC ステイタス表示が、フェイス `view-lock-vc' になるようにしてあります。
+
+    この変数でリスト指定した VC のフェイスが対象になります[fn::VC face かどうかの整合性はチェックしていないのでスペルミスには注意してください。]。
+    不要な場合やVCフェイス側で設定する場合は `nil' にすると無効になります。
+    デフォルトは \(vc-up-to-date-state vc-locked-state) です。
+    # [fn:: RCS, CVS, Git で動作確認]
+
+    RCS 等の Lock系の場合、自分がリポジトリをロックしていない状態だと
+    (つまり編集できない状態なら) VC インジケータに色がつきます(-)。
+    Git 等のマージ系なら未編集なら着色され(-)で更新すると消灯します(:)。
+    共にワークファイルが未編集だと点灯しているということになります。
+
+    # ワークファイルが未編集(リポジトリの最新と同一)なら VC インジケータに色がつきます。
+
+*** view-lock-lighter
+    view-lock-mode のインジケータ・ラベル文字列。
+    先頭にスペースをひとつ入れてください。
+    `view-lock-lock-highlight' により "View" インジケータを灯火するだけでいいなら、
+    `nil' にしておけばこちらは出なくなります。
+
+** フェイス
+*** view-lock-highlight
+    mode-line に表示される "View" マイナーモード・インジケータのフェイス.
+
+*** view-lock-lock-highlight
+    ロック時の "View" のフェイス。
+
+*** view-lock-vc
+    カスタム変数 `view-lock-vc-faces' で指定されたフェイス属性をこのフェイスのものにします。
+    `view-lock-highlight' からボールド属性を取り除いたものになっています。
+
+* 動作環境
+> GNU Emacs 29.0.50 (build 1, x86_64-w64-mingw32) of 2022-04-03
