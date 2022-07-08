@@ -4,7 +4,7 @@
 
 ;; Author: Shiina fubuki <fubukiATfrill.org>
 ;; Keywords: environment
-;; Version: $Revision: 1.20 $
+;; Version: $Revision: 1.22 $
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -122,13 +122,14 @@ Start `view-lock-idle-timer' and Highlight View mode indicator."
 (add-hook 'kill-buffer-hook #'view-lock-kill-timer)
 
 (defun view-lock-start (buff)
-  (and (buffer-live-p buff) (with-current-buffer buff (view-lock-mode 1))))
+  (and (buffer-live-p buff) (with-current-buffer buff (view-lock-mode))))
 
 (defun view-lock-message ()
   (interactive)
-  (let ((key (key-description (where-is-internal 'view-lock-quit nil t))))
-    (ding)
-    (message "View mode is Locked. type `%s' to lock release." key)))
+  (ding)
+  (message "%s"
+           (substitute-command-keys
+            "View mode is Locked. type \\[view-lock-quit] to lock release.")))
 
 (defun view-lock-quit (prefix)
   (interactive "P")
