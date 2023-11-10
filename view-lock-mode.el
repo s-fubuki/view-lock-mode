@@ -1,10 +1,10 @@
 ;;; view-lock-mode.el --- View Lock mode -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022  Shiina fubuki
+;; Copyright (C) 2022, 2023  Shiina fubuki
 
 ;; Author: Shiina fubuki <fubukiATfrill.org>
 ;; Keywords: environment
-;; Version: $Revision: 1.22 $
+;; Version: @(#)$Revision: 2.5 $
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -24,32 +24,31 @@
 ;; View Lock minor mode
 ;; Locks `view-mode' after the specified time.
 
-;; (setq view-lock-start-time 180)
-;; (require 'view-lock-mode)
+;; (setq view-read-only t)
+;; (autoload 'view-lock-mode "view-lock-mode" nil t)
+;; (add-hook 'view-mode-hook #'(lambda () (view-lock-mode (if view-mode 1 -1))))
 
 ;; Other options see (customize-group 'view-lock-mode)
 
 ;;; Code:
-(when (require 'view nil 'noerror)
-  (setq view-read-only t) ; in simple.el
-  (add-hook 'view-mode-hook #'view-lock-timer-setup))
+(require 'view)
 
 (defgroup view-lock-mode nil
   "view-mode Lock mode."
-  :version "29"
+  :version "30"
   :prefix  "view-lock-"
-  :group   'environment)
+  :group   'view)
 
 (defcustom view-lock-start-time (* 5 60)
   "View Lock idle time seconds."
   :type  'integer
   :group 'view-lock-mode)
 
-(defcustom view-lock-lighter " View-Lock"
+(defcustom view-lock-lighter " View"
   "view-lock-mode lighter."
   :type '(choice string (const nil))
   :group 'view-lock-mode)
- 
+
 (defcustom view-lock-current-input-method t
   "Disable IME at the same time as Lock."
   :type  'boolean
@@ -60,17 +59,20 @@
   :type '(choice (repeat face) (const nil))
   :group 'view-lock-mode)
 
+(defgroup view-lock-mode-faces nil
+  "view-mode Lock mode face."
+  :group 'view-lock-mode
+  :group 'faces)
+
 (defface view-lock-highlight
   '((t :inherit mode-line-inactive :foreground "plum" :weight bold))
   "View mode highlight face."
-  :group 'view-lock-mode
-  :group 'faces)
+  :group 'view-lock-mode-faces)
 
 (defface view-lock-lock-highlight
   '((t :inherit mode-line-inactive :foreground "deep sky blue" :weight bold))
   "View mode lock face."
-  :group 'view-lock-mode
-  :group 'faces)
+  :group 'view-lock-mode-faces)
 
 ;; モードライン VC インジケータの face.
 ;; RCS 等の Lock系の場合リポジトリが Unlock もしくは他者による Lock、
@@ -79,10 +81,10 @@
 (defface view-lock-vc
   '((t :inherit view-lock-highlight :weight normal))
   "VC mode line stat face."
-  :group 'view-lock-mode
-  :group 'faces)
+  :group 'view-lock-mode-faces)
 
-(defvar view-lock-timer nil "Local work variable")
+(defvar-local view-lock-timer nil "Local work variable")
+(defvar-local view-lock-active nil)
 
 (when (and view-lock-vc-faces (boundp 'face-remapping-alist))
   (setq face-remapping-alist
@@ -99,87 +101,109 @@
                      (remove mode minor-mode-alist))))))
 
 (defun view-lock-cancel-timer ()
-  (and view-lock-timer (cancel-timer view-lock-timer)))
+  (when view-lock-timer
+    (cancel-timer view-lock-timer)))
 
-(defun view-lock-idle-timer ()
+(defun view-lock-timer-start ()
   (run-with-idle-timer
-   view-lock-start-time nil #'view-lock-start (current-buffer)))
-
-(defun view-lock-timer-setup ()
-  "For `view-mode-hook' function.
-Start `view-lock-idle-timer' and Highlight View mode indicator."
-  (cond
-   (view-mode
-    (view-lock-ligher 'view-lock-highlight)
-    (setq-local view-lock-timer (view-lock-idle-timer)))
-   (t
-    (and view-lock-mode (view-lock-mode -1))
-    (view-lock-cancel-timer))))
+   view-lock-start-time nil #'view-lock-active (current-buffer)))
 
 (defun view-lock-kill-timer ()
   (view-lock-cancel-timer))
 
-(add-hook 'kill-buffer-hook #'view-lock-kill-timer)
-
-(defun view-lock-start (buff)
-  (and (buffer-live-p buff) (with-current-buffer buff (view-lock-mode))))
+(defun view-lock-active (buff)
+  (and (buffer-live-p buff) (with-current-buffer buff (view-lock-key-lock))))
 
 (defun view-lock-message ()
   (interactive)
   (ding)
   (message "%s"
            (substitute-command-keys
-            "View mode is Locked. type \\[view-lock-quit] to lock release.")))
+            "View mode is Locked. type \\[read-only-mode] to lock release.")))
 
-(defun view-lock-quit (prefix)
+(defun view-lock-restart (prefix)
+  "ロック解除しロックタイマーが再スタートされる.
+PREFIX 在りではロック解除のみで再スタートはされない."
   (interactive "P")
   (view-lock-mode -1)
-  (if prefix
-      (setq-local view-lock-timer (view-lock-idle-timer))
-    (view-mode -1)
-    (setq buffer-read-only nil)))
+  (or prefix (view-lock-mode 1)))
+;;
+;;
+(defvar view-mode-override-menu-map
+  (let ((map (make-sparse-keymap "view-lock")))
+    ;; (define-key map [view-lock-mode] '("Disable" . view-lock-mode))
+    (define-key map [view-lock-restart]
+                '(menu-item "Lock Release" view-lock-restart
+                      :enable view-lock-active))
+    (define-key map [read-only-mode]
+                (list 'menu-item "Read Only Mode" #'read-only-mode
+                      :button '(:toggle . buffer-read-only)))
+    map))
 
-(defun view-lock-release ()
-  (interactive)
-  (view-lock-quit 'prefix))
+(fset 'view-mode-override-menu-map view-mode-override-menu-map)
 
-(defvar view-lock-mode-map
-  (let ((map  (make-sparse-keymap))
-        (menu (make-sparse-keymap "view-lock")))
+(defvar view-mode-override-map
+  (let ((map (make-sparse-keymap)))
     (define-key map [remap self-insert-command] #'view-lock-message)
     (define-key map "\C-m" #'view-lock-message)
     (define-key map "\C-j" #'view-lock-message)
-    (define-key map "\M-q" #'view-lock-quit)
-    (define-key map "\C-x\C-q" #'view-lock-quit)
-    (define-key map [menu-bar view-lock] (cons "View-Lock" menu))
-    (define-key menu [view-lock-release] '("Release Only" . view-lock-release))
-    (define-key menu [view-lock-quit]
-                '(menu-item "Quit View Mode" view-lock-quit
-                            :help "With prefix lock release only"))
+    (define-key map "\M-q" #'view-lock-restart)
+    (define-key map [menu-bar view-lock] (cons "View-Lock" view-mode-override-menu-map))
     map)
-  "View Lock mode Keymap.")
+  "View Lock mode override Keymap.")
+
+(defvar view-mode-override-mode-line-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [mode-line down-mouse-1] #'view-mode-override-menu-map)
+    map))
+
+(defmacro view-lock-lighter-property (face echo)
+  `(list pre (list :propertize post
+                   'face ,face
+                   'keymap view-mode-override-mode-line-map
+                   'mouse-face 'mode-line-highlight
+                   'help-echo ,echo)))
+
+(defun view-lock-mode-lighter ()
+  (let* ((pre (substring view-lock-lighter 0 1))
+         (post (substring view-lock-lighter 1))
+         (active (view-lock-lighter-property 'view-lock-lock-highlight "View Lock Active"))
+         (inactive (view-lock-lighter-property 'view-lock-highlight "View Lock Inactive")))
+    (list 'view-lock-active active inactive)))
+ 
+(defvar view-lock-mode-lighter (view-lock-mode-lighter))
+(put 'view-lock-mode-lighter 'risky-local-variable t)
 
 (define-minor-mode view-lock-mode
   "Key is locked if no operation for a period of time in `view-mode'.
 Triger Time is specified in seconds in `view-lock-start-time'.
-\\<view-lock-mode-map>
-Press \\[view-lock-quit] to cancel. For unlocking only, with prefix key.
-\\{view-lock-mode-map}"
-  :lighter view-lock-lighter
+Press \\[view-lock-mode] to cancel. For unlocking only, with prefix key.
+\\{view-mode-override-map}"
+  :lighter view-lock-mode-lighter
   (cond
    (view-lock-mode
-    (view-lock-cancel-timer)
+    (setq-local view-lock-timer (view-lock-timer-start))
     (and view-lock-current-input-method
          current-input-method (toggle-input-method))
-    (make-local-variable 'minor-mode-alist)
-    (view-lock-ligher 'view-lock-lock-highlight)
-    (setq minor-mode-overriding-map-alist
-          (list (cons 'view-mode view-lock-mode-map)
-                '(view-lock-mode . nil))))
+    (or (local-variable-p 'minor-mode-alist)
+        (make-local-variable 'minor-mode-alist))
+    (setq minor-mode-alist
+          (remove (assq 'view-mode minor-mode-alist) minor-mode-alist))
+     (add-hook 'kill-buffer-hook #'view-lock-kill-timer))
    (t
+    (view-lock-cancel-timer)
+    (setq view-lock-active nil)
     (and (local-variable-p 'minor-mode-alist)
          (kill-local-variable 'minor-mode-alist))
-    (setq minor-mode-overriding-map-alist nil))))
+    (setq minor-mode-overriding-map-alist nil)
+    (remove-hook 'kill-buffer-hook #'view-lock-kill-timer))))
+
+(defun view-lock-key-lock ()
+  (setq view-lock-active t)
+  (force-mode-line-update)
+  (setq minor-mode-overriding-map-alist
+        `((view-mode      . ,view-mode-override-map)
+          (read-only-mode . ,view-mode-override-map))))
 
 (provide 'view-lock-mode)
 ;; fin.
