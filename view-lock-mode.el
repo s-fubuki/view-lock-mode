@@ -1,10 +1,10 @@
 ;;; view-lock-mode.el --- View Lock mode -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022, 2023  Shiina fubuki
+;; Copyright (C) 2022, 2023, 2024 Shiina fubuki
 
-;; Author: Shiina fubuki <fubukiATfrill.org>
+;; Author: Shiina fubuki <fubuki AT frill.org>
 ;; Keywords: environment
-;; Version: @(#)$Revision: 2.5 $
+;; Version: @(#)$Revision: 2.9 $
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -59,19 +59,35 @@
   :type '(choice (repeat face) (const nil))
   :group 'view-lock-mode)
 
+(defcustom view-lock-shade t
+  "Shade the screen."
+  :type  'boolean
+  :group 'view-lock-mode)
+
 (defgroup view-lock-mode-faces nil
   "view-mode Lock mode face."
   :group 'view-lock-mode
   :group 'faces)
 
 (defface view-lock-highlight
-  '((t :inherit mode-line-inactive :foreground "plum" :weight bold))
+  '((((background dark))
+     (:inherit mode-line-inactive :foreground "plum" :weight bold))
+    (t :inherit mode-line-inactive :foreground "gold4" :weight bold))
   "View mode highlight face."
   :group 'view-lock-mode-faces)
 
 (defface view-lock-lock-highlight
-  '((t :inherit mode-line-inactive :foreground "deep sky blue" :weight bold))
+  '((((background dark))
+     (:inherit mode-line-inactive :foreground "deep sky blue" :weight bold))
+    (t :inherit mode-line-inactive :foreground "green4" :weight bold))
   "View mode lock face."
+  :group 'view-lock-mode-faces)
+
+(defface view-lock-shade
+  '((((background dark))
+     (:inherit shadow :foreground "dark slate blue"))
+    (t :foreground "grey90"))
+  "view lock shade face."
   :group 'view-lock-mode-faces)
 
 ;; モードライン VC インジケータの face.
@@ -106,13 +122,15 @@
 
 (defun view-lock-timer-start ()
   (run-with-idle-timer
-   view-lock-start-time nil #'view-lock-active (current-buffer)))
+   view-lock-start-time nil #'view-lock-active
+   (list (current-buffer) (window-start) (window-end))))
 
 (defun view-lock-kill-timer ()
   (view-lock-cancel-timer))
 
-(defun view-lock-active (buff)
-  (and (buffer-live-p buff) (with-current-buffer buff (view-lock-key-lock))))
+(defun view-lock-active (stat)
+  (and (buffer-live-p (car stat))
+       (view-lock-key-lock stat)))
 
 (defun view-lock-message ()
   (interactive)
@@ -127,6 +145,22 @@ PREFIX 在りではロック解除のみで再スタートはされない."
   (interactive "P")
   (view-lock-mode -1)
   (or prefix (view-lock-mode 1)))
+
+(defvar-local view-lock-shade-ov nil)
+
+(defun view-lock-shade (stat &optional open)
+  (let ((buff (nth 0 stat))
+        (beg  (nth 1 stat))
+        (end  (nth 2 stat)))
+    (with-current-buffer buff
+      (if (or open view-lock-shade-ov)
+          (progn
+            (and view-lock-shade-ov
+                 (delete-overlay view-lock-shade-ov))
+            (setq view-lock-shade-ov nil))
+        (setq view-lock-shade-ov (make-overlay beg end buff))
+        (overlay-put view-lock-shade-ov 'category 'view-lock)
+        (overlay-put view-lock-shade-ov 'face 'view-lock-shade)))))
 ;;
 ;;
 (defvar view-mode-override-menu-map
@@ -134,10 +168,10 @@ PREFIX 在りではロック解除のみで再スタートはされない."
     ;; (define-key map [view-lock-mode] '("Disable" . view-lock-mode))
     (define-key map [view-lock-restart]
                 '(menu-item "Lock Release" view-lock-restart
-                      :enable view-lock-active))
+                            :enable view-lock-active))
     (define-key map [read-only-mode]
-                (list 'menu-item "Read Only Mode" #'read-only-mode
-                      :button '(:toggle . buffer-read-only)))
+                '(menu-item "Read Only Mode" read-only-mode
+                            :button (:toggle . buffer-read-only)))
     map))
 
 (fset 'view-mode-override-menu-map view-mode-override-menu-map)
@@ -192,18 +226,21 @@ Press \\[view-lock-mode] to cancel. For unlocking only, with prefix key.
      (add-hook 'kill-buffer-hook #'view-lock-kill-timer))
    (t
     (view-lock-cancel-timer)
+    (and view-lock-shade (view-lock-shade (list (current-buffer)) 'open))
     (setq view-lock-active nil)
     (and (local-variable-p 'minor-mode-alist)
          (kill-local-variable 'minor-mode-alist))
     (setq minor-mode-overriding-map-alist nil)
     (remove-hook 'kill-buffer-hook #'view-lock-kill-timer))))
 
-(defun view-lock-key-lock ()
-  (setq view-lock-active t)
-  (force-mode-line-update)
-  (setq minor-mode-overriding-map-alist
-        `((view-mode      . ,view-mode-override-map)
-          (read-only-mode . ,view-mode-override-map))))
+(defun view-lock-key-lock (stat)
+  (with-current-buffer (car stat)
+    (setq view-lock-active t)
+    (and view-lock-shade (view-lock-shade stat))
+    (force-mode-line-update)
+    (setq minor-mode-overriding-map-alist
+          `((view-mode      . ,view-mode-override-map)
+            (read-only-mode . ,view-mode-override-map)))))
 
 (provide 'view-lock-mode)
 ;; fin.
