@@ -4,7 +4,7 @@
 
 ;; Author: Shiina fubuki <fubuki AT frill.org>
 ;; Keywords: environment
-;; Version: @(#)$Revision: 2.9 $
+;; Version: @(#)$Revision: 2.11 $
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -64,6 +64,11 @@
   :type  'boolean
   :group 'view-lock-mode)
 
+(defcustom view-lock-shade-priority 65536
+  "View lock shade overlay priority."
+  :type 'integer
+  :group 'view-lock-mode)
+
 (defgroup view-lock-mode-faces nil
   "view-mode Lock mode face."
   :group 'view-lock-mode
@@ -101,6 +106,7 @@
 
 (defvar-local view-lock-timer nil "Local work variable")
 (defvar-local view-lock-active nil)
+(defvar-local view-lock-shade-ov nil)
 
 (when (and view-lock-vc-faces (boundp 'face-remapping-alist))
   (setq face-remapping-alist
@@ -122,15 +128,14 @@
 
 (defun view-lock-timer-start ()
   (run-with-idle-timer
-   view-lock-start-time nil #'view-lock-active
-   (list (current-buffer) (window-start) (window-end))))
+   view-lock-start-time nil #'view-lock-active (current-buffer)))
 
 (defun view-lock-kill-timer ()
   (view-lock-cancel-timer))
 
-(defun view-lock-active (stat)
-  (and (buffer-live-p (car stat))
-       (view-lock-key-lock stat)))
+(defun view-lock-active (buff)
+  (and (buffer-live-p buff)
+       (view-lock-key-lock buff)))
 
 (defun view-lock-message ()
   (interactive)
@@ -146,13 +151,10 @@ PREFIX 在りではロック解除のみで再スタートはされない."
   (view-lock-mode -1)
   (or prefix (view-lock-mode 1)))
 
-(defvar-local view-lock-shade-ov nil)
-
-(defun view-lock-shade (stat &optional open)
-  (let ((buff (nth 0 stat))
-        (beg  (nth 1 stat))
-        (end  (nth 2 stat)))
-    (with-current-buffer buff
+(defun view-lock-shade (buff &optional open)
+  (with-current-buffer buff
+    (let ((beg (point-min))
+          (end (point-max)))
       (if (or open view-lock-shade-ov)
           (progn
             (and view-lock-shade-ov
@@ -160,9 +162,9 @@ PREFIX 在りではロック解除のみで再スタートはされない."
             (setq view-lock-shade-ov nil))
         (setq view-lock-shade-ov (make-overlay beg end buff))
         (overlay-put view-lock-shade-ov 'category 'view-lock)
+        (overlay-put view-lock-shade-ov 'priority view-lock-shade-priority)
         (overlay-put view-lock-shade-ov 'face 'view-lock-shade)))))
-;;
-;;
+
 (defvar view-mode-override-menu-map
   (let ((map (make-sparse-keymap "view-lock")))
     ;; (define-key map [view-lock-mode] '("Disable" . view-lock-mode))
@@ -226,17 +228,17 @@ Press \\[view-lock-mode] to cancel. For unlocking only, with prefix key.
      (add-hook 'kill-buffer-hook #'view-lock-kill-timer))
    (t
     (view-lock-cancel-timer)
-    (and view-lock-shade (view-lock-shade (list (current-buffer)) 'open))
+    (and view-lock-shade (view-lock-shade (current-buffer) 'open))
     (setq view-lock-active nil)
     (and (local-variable-p 'minor-mode-alist)
          (kill-local-variable 'minor-mode-alist))
     (setq minor-mode-overriding-map-alist nil)
     (remove-hook 'kill-buffer-hook #'view-lock-kill-timer))))
 
-(defun view-lock-key-lock (stat)
-  (with-current-buffer (car stat)
+(defun view-lock-key-lock (buff)
+  (with-current-buffer buff
     (setq view-lock-active t)
-    (and view-lock-shade (view-lock-shade stat))
+    (and view-lock-shade (view-lock-shade buff))
     (force-mode-line-update)
     (setq minor-mode-overriding-map-alist
           `((view-mode      . ,view-mode-override-map)

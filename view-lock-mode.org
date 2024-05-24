@@ -1,4 +1,4 @@
-# $Revision$
+# $Revision: 1.14 $
 * view-lock-mode
   view-mode のとき、しばらく触らないと印字キーをロックする拡張です.
   事故防止等で view-mode しておいたのを忘れて、
@@ -38,7 +38,6 @@
   | M-q     | ロック解除され view-mode になり一定時間操作がないと再び自動ロックされる |
   | C-u M-q | ロック解除されプレーンな view-mode になる                               |
 
-
 * カスタマイズ
 ** カスタム変数
 *** view-lock-start-time
@@ -71,7 +70,7 @@
     デフォルトは " View".
 
 *** view-lock-shade
-non-nil ならロックされたとき画面に日除けをおろします.
+non-nil ならロックされたとき画面に日避けをおろします.
 デフォルトは t で、ロックされると暗くなります.
 (バッファが表のウィンドウでない場合稀になっていないバグがあります)
 
@@ -82,7 +81,7 @@ non-nil ならロックされたとき画面に日除けをおろします.
 
 *** view-lock-lock-highlight
     上記、ロック時のフェイス.
-    デフォルトは `deep sky blue' または `green4'.
+    デフォルトは `deep sky blue' または `green4' です.
 
 *** view-lock-vc
     カスタム変数 `view-lock-vc-faces' で指定されたフェイス属性をこのフェイスのものにします.
@@ -93,7 +92,14 @@ non-nil ならロックされたとき画面に日除けをおろします.
 デフォルトは主に `dark slate blue' または `grey90' です.
 
 * 前版からの変更点等
-動作時画面を暗くするようにしました.
+** revision 2.11
+- fix: shade overlay のプライオリティをセット.
+ `view-lock-shade-priority' で設定.
+ 先人が居るとそこだけ覆われなかったため.
+
+- fix: `view-lock-timer-start' window-start end を渡すのをやめる.
+ window が裏になると(表示されていないと)表にあったときの最後の位置も忘れてしまうようで
+ うまくシェードが降りなかったためバッファ全体を覆うようにする.
 
 * 動作環境
 > GNU Emacs 30.0.50 (build 1, x86_64-w64-mingw32) of 2023-04-16
