@@ -1,4 +1,4 @@
-# $Revision: 1.14 $
+# $Revision: 1.15 $
 * view-lock-mode
   view-mode のとき、しばらく触らないと印字キーをロックする拡張です.
   事故防止等で view-mode しておいたのを忘れて、
@@ -15,7 +15,7 @@
 (add-hook 'view-mode-hook #'(lambda () (view-lock-mode (if view-mode 1 -1))))
 #+END_SRC
 
-  /C-x C-q/ で `read-only-mode' にすると  `view-mode' になり、
+  `C-x C-q' で `read-only-mode' にすると  `view-mode' になり、
   モードラインの `View' インジケータに色がつきます.
 
   `view-mode' のとき 5分間タイプがないと文字キーがロックされ
@@ -25,14 +25,14 @@
 
   ロックされるのは印字キーと改行キーだけなので、
   コントロール系は勿論カーソル等ファンクション系のキーは素通りします.
-  解除するには再び /C-x C-q/ とタイプします.
+  解除するには再び `C-x C-q' とタイプします.
 
   ロック時 `M-q' とすると、最初に `C-x C-q' で起動した状態と同じ
   ロックスタンバイの状態になります.
   prefix を付け `C-u M-q' すると `view-lock-mode' だけが終了し
   プレーンな `view-mode' になります(が、あまり意味はないと思われる).
 
-  ロック中のキー操作まとめると
+  ロック中のキー操作まとめ
 
   | C-x C-q | view-mode 共々完全に解除し編集可能になる                                |
   | M-q     | ロック解除され view-mode になり一定時間操作がないと再び自動ロックされる |
@@ -40,15 +40,22 @@
 
 * カスタマイズ
 ** カスタム変数
-*** view-lock-start-time
+- view-lock-start-time ::
     キーに触れなくなってからロック開始するまでの秒数を整数で指定します.
     デフォルトは 300(5分)です.
 
-*** view-lock-current-input-method
-     non-nil だとロック時に IME を切ります(これも入れたままなのを忘れているので).
-     デフォルトは `t' です.SKK でしか効力がないかもしれません.
+- view-lock-current-input-method ::
+    non-nil ならロック時に IME が起動していれば切り、解除で再度オンにします.
+    デフォルトは `t' です. SKK でしか効力がないかもしれません.
 
-*** view-lock-vc-faces
+- view-lock-push-mark ::
+    nonl-nil なら view-mode にしたときのポイントをマークします.
+    デフォルトは `t' でマークされます.
+
+    view-mode の状態で意図せずスクロール等してしまったとき
+    `c-u C-x C-x' または `C-x C-x' 等で view-mode にしたときの位置に戻れるようになります.
+
+- view-lock-vc-faces ::
     VC に `read-only-mode' と連動させた部分があるので、
     モードラインの VC ステイタス表示が、フェイス `view-lock-vc' になるようにしてあります.
 
@@ -64,35 +71,39 @@
 
     # ワークファイルが未編集(リポジトリの最新と同一)なら VC インジケータに色がつきます.
 
-*** view-lock-lighter
+- view-lock-lighter ::
     view-lock-mode のインジケータ・ラベル文字列.
     先頭にスペースをひとつ入れてください.
     デフォルトは " View".
 
-*** view-lock-shade
-non-nil ならロックされたとき画面に日避けをおろします.
-デフォルトは t で、ロックされると暗くなります.
-(バッファが表のウィンドウでない場合稀になっていないバグがあります)
+- view-lock-shade ::
+    non-nil ならロックされたとき画面に日避けをおろします.
+    デフォルトは t で、ロックされると暗くなります.
+    (バッファが表のウィンドウでない場合稀になっていないバグがあります)
 
 ** フェイス
-*** view-lock-highlight
+- view-lock-highlight ::
     mode-line に表示される view-lock-mode インジケータのフェイス.
     デフォルトは `plum' または `gold4' で画面の明さによってどちらかになります.
 
-*** view-lock-lock-highlight
+- view-lock-lock-highlight ::
     上記、ロック時のフェイス.
     デフォルトは `deep sky blue' または `green4' です.
 
-*** view-lock-vc
+- view-lock-vc ::
     カスタム変数 `view-lock-vc-faces' で指定されたフェイス属性をこのフェイスのものにします.
     `view-lock-highlight' からボールド属性を取り除いたものになっています.
 
-*** view-lock-shade
-同名変数が non-nil のとき画面を覆うフェイスです.
-デフォルトは主に `dark slate blue' または `grey90' です.
+- view-lock-shade ::
+    同名変数が non-nil のとき画面を覆うフェイスです.
+    デフォルトは主に `dark slate blue' または `grey90' です.
 
 * 前版からの変更点等
-** revision 2.11
+** 2.12
+- add: new custom value `view-lock-push-mark'.
+- change: `view-lock-current-input-method' t のとき IME の on/off を保持.
+
+** 2.11
 - fix: shade overlay のプライオリティをセット.
  `view-lock-shade-priority' で設定.
  先人が居るとそこだけ覆われなかったため.
@@ -102,5 +113,4 @@ non-nil ならロックされたとき画面に日避けをおろします.
  うまくシェードが降りなかったためバッファ全体を覆うようにする.
 
 * 動作環境
-> GNU Emacs 30.0.50 (build 1, x86_64-w64-mingw32) of 2023-04-16
-
+GNU Emacs 30.0.50 (build 1, x86_64-w64-mingw32) of 2023-04-16

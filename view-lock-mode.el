@@ -4,7 +4,7 @@
 
 ;; Author: Shiina fubuki <fubuki AT frill.org>
 ;; Keywords: environment
-;; Version: @(#)$Revision: 2.11 $
+;; Version: @(#)$Revision: 2.12 $
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -69,6 +69,11 @@
   :type 'integer
   :group 'view-lock-mode)
 
+(defcustom view-lock-push-mark t
+  "If non-nil, Marks the point when locking start."
+  :type 'boolean
+  :group 'view-lock-mode)
+
 (defgroup view-lock-mode-faces nil
   "view-mode Lock mode face."
   :group 'view-lock-mode
@@ -107,6 +112,7 @@
 (defvar-local view-lock-timer nil "Local work variable")
 (defvar-local view-lock-active nil)
 (defvar-local view-lock-shade-ov nil)
+(defvar-local view-lock--current-input-method nil)
 
 (when (and view-lock-vc-faces (boundp 'face-remapping-alist))
   (setq face-remapping-alist
@@ -127,6 +133,7 @@
     (cancel-timer view-lock-timer)))
 
 (defun view-lock-timer-start ()
+  (and view-lock-push-mark (push-mark (point)))
   (run-with-idle-timer
    view-lock-start-time nil #'view-lock-active (current-buffer)))
 
@@ -220,7 +227,8 @@ Press \\[view-lock-mode] to cancel. For unlocking only, with prefix key.
    (view-lock-mode
     (setq-local view-lock-timer (view-lock-timer-start))
     (and view-lock-current-input-method
-         current-input-method (toggle-input-method))
+         (setq view-lock--current-input-method current-input-method)
+         (toggle-input-method))
     (or (local-variable-p 'minor-mode-alist)
         (make-local-variable 'minor-mode-alist))
     (setq minor-mode-alist
@@ -230,6 +238,8 @@ Press \\[view-lock-mode] to cancel. For unlocking only, with prefix key.
     (view-lock-cancel-timer)
     (and view-lock-shade (view-lock-shade (current-buffer) 'open))
     (setq view-lock-active nil)
+    (and view-lock-current-input-method view-lock--current-input-method
+         (toggle-input-method nil t))
     (and (local-variable-p 'minor-mode-alist)
          (kill-local-variable 'minor-mode-alist))
     (setq minor-mode-overriding-map-alist nil)
